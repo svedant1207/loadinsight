@@ -1,13 +1,15 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
-from app.models.load_test import TestStatus
+from typing import Optional, Dict, Any
 
 class LoadTestCreate(BaseModel):
     virtual_users: int
     duration_seconds: int
     ramp_up_seconds: int = 0
     request_rate: Optional[int] = None
+    http_method: str = "GET"
+    request_headers: Optional[Dict[str, str]] = None
+    request_body: Optional[Dict[str, Any]] = None
 
 class LoadTestResponse(BaseModel):
     id: str
@@ -16,6 +18,7 @@ class LoadTestResponse(BaseModel):
     duration_seconds: int
     ramp_up_seconds: int
     status: str
+    http_method: str
     total_requests: Optional[int] = None
     successful_requests: Optional[int] = None
     failed_requests: Optional[int] = None

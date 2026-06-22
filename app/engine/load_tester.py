@@ -1,14 +1,15 @@
 import asyncio
 import time
 import statistics
+import json
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Optional, Dict, Any
 import httpx
 
 @dataclass
 class RequestResult:
     success: bool
-    response_time: float  # in milliseconds
+    response_time: float
     status_code: int | None = None
     error: str | None = None
     timed_out: bool = False
@@ -56,11 +57,23 @@ class TestResult:
         }
 
 
-async def make_request(client: httpx.AsyncClient, url: str) -> RequestResult:
+async def make_request(
+    client: httpx.AsyncClient,
+    url: str,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    body: Optional[Dict[str, Any]] = None,
+) -> RequestResult:
     start = time.monotonic()
     try:
-        response = await client.get(url, timeout=10)
-        elapsed = (time.monotonic() - start) * 1000  # convert to ms
+        response = await client.request(
+            method=method.upper(),
+            url=url,
+            headers=headers or {},
+            json=body if body else None,
+            timeout=10,
+        )
+        elapsed = (time.monotonic() - start) * 1000
         return RequestResult(
             success=response.status_code < 400,
             response_time=elapsed,
@@ -74,11 +87,18 @@ async def make_request(client: httpx.AsyncClient, url: str) -> RequestResult:
         return RequestResult(success=False, response_time=elapsed, error=str(e))
 
 
-async def virtual_user(url: str, duration_seconds: int, result: TestResult):
+async def virtual_user(
+    url: str,
+    duration_seconds: int,
+    result: TestResult,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    body: Optional[Dict[str, Any]] = None,
+):
     end_time = time.monotonic() + duration_seconds
     async with httpx.AsyncClient() as client:
         while time.monotonic() < end_time:
-            req_result = await make_request(client, url)
+            req_result = await make_request(client, url, method, headers, body)
             result.total_requests += 1
             result.response_times.append(req_result.response_time)
 
@@ -100,24 +120,27 @@ async def run_load_test(
     virtual_users: int,
     duration_seconds: int,
     ramp_up_seconds: int = 0,
+    method: str = "GET",
+    headers: Optional[Dict[str, str]] = None,
+    body: Optional[Dict[str, Any]] = None,
 ) -> dict:
     result = TestResult()
 
     if ramp_up_seconds > 0:
-        # spawn users gradually
         delay = ramp_up_seconds / virtual_users
         tasks = []
         for i in range(virtual_users):
             await asyncio.sleep(delay)
             task = asyncio.create_task(
-                virtual_user(url, duration_seconds, result)
+                virtual_user(url, duration_seconds, result, method, headers, body)
             )
             tasks.append(task)
         await asyncio.gather(*tasks)
     else:
-        # spawn all users at once
         tasks = [
-            asyncio.create_task(virtual_user(url, duration_seconds, result))
+            asyncio.create_task(
+                virtual_user(url, duration_seconds, result, method, headers, body)
+            )
             for _ in range(virtual_users)
         ]
         await asyncio.gather(*tasks)

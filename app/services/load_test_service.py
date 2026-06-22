@@ -1,4 +1,5 @@
 import uuid
+import json
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -13,7 +14,6 @@ class LoadTestService:
         self.db = db
 
     async def create_and_run(self, project_id: str, data: LoadTestCreate) -> LoadTest:
-        # get project url
         result = await self.db.execute(select(Project).where(Project.id == project_id))
         project = result.scalar_one_or_none()
         if not project:
@@ -22,7 +22,6 @@ class LoadTestService:
         if not project.is_verified:
             raise ValueError("Domain is not verified. Verify your domain first.")
 
-        # create load test record
         load_test = LoadTest(
             id=str(uuid.uuid4()),
             project_id=project_id,
@@ -30,21 +29,25 @@ class LoadTestService:
             duration_seconds=data.duration_seconds,
             ramp_up_seconds=data.ramp_up_seconds,
             request_rate=data.request_rate,
+            http_method=data.http_method,
+            request_headers=json.dumps(data.request_headers) if data.request_headers else None,
+            request_body=json.dumps(data.request_body) if data.request_body else None,
             status=TestStatus.running,
             started_at=datetime.utcnow(),
         )
         self.db.add(load_test)
         await self.db.flush()
 
-        # run the test
         metrics = await run_load_test(
             url=project.url,
             virtual_users=data.virtual_users,
             duration_seconds=data.duration_seconds,
             ramp_up_seconds=data.ramp_up_seconds,
+            method=data.http_method,
+            headers=data.request_headers,
+            body=data.request_body,
         )
 
-        # save results
         load_test.status = TestStatus.completed
         load_test.completed_at = datetime.utcnow()
         load_test.total_requests = metrics["total_requests"]

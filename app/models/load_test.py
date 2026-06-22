@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, DateTime, ForeignKey, Integer, Float, Enum
+from sqlalchemy import String, DateTime, ForeignKey, Integer, Float, Enum, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 import enum
@@ -24,6 +24,11 @@ class LoadTest(Base):
     duration_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     ramp_up_seconds: Mapped[int] = mapped_column(Integer, default=0)
     request_rate: Mapped[int] = mapped_column(Integer, nullable=True)
+
+    # request config
+    http_method: Mapped[str] = mapped_column(String(10), default="GET")
+    request_headers: Mapped[str] = mapped_column(Text, nullable=True)  # stored as JSON string
+    request_body: Mapped[str] = mapped_column(Text, nullable=True)  # stored as JSON string
 
     # status
     status: Mapped[str] = mapped_column(String(20), default=TestStatus.pending)
