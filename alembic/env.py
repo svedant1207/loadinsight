@@ -7,6 +7,7 @@ from app.models.user import User  # noqa: F401
 from app.models.project import Project  # noqa: F401
 from app.models.domain_verification import DomainVerification  # noqa: F401
 from app.models.load_test import LoadTest  # noqa: F401
+from app.models.pipeline import Pipeline, PipelineStep  # noqa: F401
 
 config = context.config
 
