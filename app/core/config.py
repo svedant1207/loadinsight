@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     DB_PASSWORD: str = ""
     DB_NAME: str = "loadinsight_db"
 
+    #jwt
+    JWT_SECRET_KEY: str = "CHANGE_ME"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
     @property
     def DATABASE_URL(self) -> str:
         return (
