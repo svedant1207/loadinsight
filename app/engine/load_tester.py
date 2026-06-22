@@ -146,3 +146,67 @@ async def run_load_test(
         await asyncio.gather(*tasks)
 
     return result.calculate_metrics(duration_seconds)
+
+async def virtual_user_pipeline(
+    steps: list,
+    duration_seconds: int,
+    result: TestResult,
+):
+    end_time = time.monotonic() + duration_seconds
+    async with httpx.AsyncClient() as client:
+        while time.monotonic() < end_time:
+            # execute each step in order
+            for step in steps:
+                if time.monotonic() >= end_time:
+                    break
+                req_result = await make_request(
+                    client=client,
+                    url=step["url"],
+                    method=step["method"],
+                    headers=step.get("headers"),
+                    body=step.get("body"),
+                )
+                result.total_requests += 1
+                result.response_times.append(req_result.response_time)
+
+                if req_result.success:
+                    result.successful_requests += 1
+                else:
+                    result.failed_requests += 1
+
+                if req_result.timed_out:
+                    result.timeout_count += 1
+
+                if req_result.status_code:
+                    code = str(req_result.status_code)
+                    result.status_codes[code] = result.status_codes.get(code, 0) + 1
+
+
+async def run_pipeline_load_test(
+    steps: list,
+    virtual_users: int,
+    duration_seconds: int,
+    ramp_up_seconds: int = 0,
+) -> dict:
+    result = TestResult()
+
+    if ramp_up_seconds > 0:
+        delay = ramp_up_seconds / virtual_users
+        tasks = []
+        for i in range(virtual_users):
+            await asyncio.sleep(delay)
+            task = asyncio.create_task(
+                virtual_user_pipeline(steps, duration_seconds, result)
+            )
+            tasks.append(task)
+        await asyncio.gather(*tasks)
+    else:
+        tasks = [
+            asyncio.create_task(
+                virtual_user_pipeline(steps, duration_seconds, result)
+            )
+            for _ in range(virtual_users)
+        ]
+        await asyncio.gather(*tasks)
+
+    return result.calculate_metrics(duration_seconds)
